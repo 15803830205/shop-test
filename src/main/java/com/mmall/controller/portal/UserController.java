@@ -45,9 +45,10 @@ public class UserController {
     public ServerResponse<User> login(String username, String password, HttpSession session, HttpServletResponse httpServletResponse){
         ServerResponse<User> response = iUserService.login(username,password);
         if(response.isSuccess()){
-//            session.setAttribute(Const.CURRENT_USER,response.getData());
+            //写cookie
             CookieUtil.writeLoginToken(httpServletResponse,session.getId());
             String userJsonStr = JSONObject.toJSONString(response.getData());
+            //缓存到redis
             RedisShardedPoolUtil.setEx(session.getId(),userJsonStr,600);
         }
         return response;
@@ -55,8 +56,13 @@ public class UserController {
 
     @RequestMapping(value = "logout.do",method = RequestMethod.POST)
     @ResponseBody
-    public ServerResponse<String> logout(HttpSession session){
-        session.removeAttribute(Const.CURRENT_USER);
+    public ServerResponse<String> logout(HttpServletRequest httpServletRequest,HttpServletResponse httpServletResponse){
+        //获取cookie
+        String logoutToken = CookieUtil.readLoginToken(httpServletRequest);
+        //删除
+        CookieUtil.delLoginToken(httpServletRequest,httpServletResponse);
+        //从redis删除key
+        RedisShardedPoolUtil.del(logoutToken);
         return ServerResponse.createBySuccess();
     }
 
